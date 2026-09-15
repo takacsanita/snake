@@ -254,6 +254,103 @@ h1.brand {
   box-shadow: 0 0 0 0.2rem rgba(47, 252, 255, 0.25);
 }
 
+/* ---------- Audio settings panel (music/SFX volume + mute) ---------- */
+.audio-toggle-btn {
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.4rem 0.65rem;
+}
+
+.audio-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+.audio-row-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 92px;
+  font-size: 1.1rem;
+  color: var(--text-dim);
+}
+
+.mute-btn {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.25rem 0.55rem;
+}
+/* Muted state reads as a dead/red neon sign rather than the live cyan look */
+.mute-btn.is-muted {
+  color: #ff4d6d;
+  border-color: #ff4d6d;
+  box-shadow: 0 0 10px rgba(255, 77, 109, 0.5);
+}
+.mute-btn.is-muted:hover {
+  background: #ff4d6d;
+  border-color: #ff4d6d;
+  box-shadow: 0 0 16px #ff4d6d;
+}
+
+/* Vector icons (Bootstrap Icons) glow to match the neon theme and animate
+   smoothly between their active-sound and muted states. */
+.audio-toggle-btn i,
+.mute-btn i {
+  display: inline-block;
+  font-size: 1.05rem;
+  text-shadow: 0 0 6px currentColor;
+  transition: color 0.2s ease, text-shadow 0.2s ease, transform 0.2s ease;
+}
+.audio-toggle-btn:hover i,
+.mute-btn:hover i {
+  transform: scale(1.12);
+}
+.mute-btn.is-muted i {
+  text-shadow: 0 0 9px #ff4d6d;
+}
+/* Muted icon fills solid on hover along with the button background, so it
+   needs to flip to a dark color to stay readable against the neon fill. */
+.mute-btn.is-muted:hover i {
+  color: #06111f;
+  text-shadow: none;
+}
+
+/* Neon-styled range sliders for music/SFX volume */
+input[type="range"].neon-range {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--neon-purple), var(--neon-pink), var(--neon-cyan));
+  outline: none;
+}
+input[type="range"].neon-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--neon-purple);
+  box-shadow: 0 0 10px var(--neon-cyan), 0 0 18px var(--neon-pink);
+  cursor: pointer;
+}
+input[type="range"].neon-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--neon-purple), var(--neon-pink), var(--neon-cyan));
+}
+input[type="range"].neon-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--neon-purple);
+  box-shadow: 0 0 10px var(--neon-cyan), 0 0 18px var(--neon-pink);
+  cursor: pointer;
+}
+
 /* ---------- On-screen D-pad (mobile touch controls) ---------- */
 .dpad {
   display: grid;

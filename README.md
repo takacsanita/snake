@@ -18,6 +18,7 @@ The classic Snake game, playable in the browser with no build step or server req
 - **Space** or **P**: Pause / Resume
 - **R**: Restart
 - **On-screen D-pad**: Touch controls on mobile devices
+- **🔊 header button**: Opens the audio panel — independent Music/SFX volume sliders and mute buttons
 
 ## Game Features
 
@@ -27,6 +28,7 @@ The classic Snake game, playable in the browser with no build step or server req
 - Wall and self-collision detection with a Game Over screen
 - Fully responsive layout (mobile, tablet, desktop) built with Bootstrap 5
 - Psychedelic neon-retro UI: animated cosmic gradient background, glowing rainbow title, neon-pulse buttons — with a glowing/pulsing food and gradient snake on the game board itself
+- Procedural hypnotic ambient/chiptune background music and sound effects (eat, turn, level-up, game over, clicks) — synthesized live with the Web Audio API, no audio files, with independently mutable/adjustable volume that's remembered across visits
 
 ## Project Structure
 
@@ -80,18 +82,19 @@ The game uses:
 - HTML5 Canvas for rendering the grid, snake, and food
 - A single persistent `requestAnimationFrame` loop, throttled to the selected difficulty's tick rate
 - Keyboard event listeners plus a touch-friendly on-screen D-pad, both feeding one shared input handler
-- `localStorage` for high score persistence across sessions
+- `localStorage` for high score and audio-preference persistence across sessions
 - Collision detection for walls, food, and self
+- The Web Audio API for all music/SFX — an ambient drone + echoing arpeggio for background music, and short synthesized tones for effects — with the shared `AudioContext` created lazily on first user interaction to respect browser autoplay policies
 
-See [CLAUDE.md](CLAUDE.md) for a deeper architecture breakdown (state machine, `localStorage` keys, control mappings).
+See [CLAUDE.md](CLAUDE.md) for a deeper architecture breakdown (state machine, `localStorage` keys, control mappings, audio system).
 
 ## Future Enhancements
 
 Potential features to add:
 - Progressive speed increase as the score climbs
-- Sound effects and background music
 - Multiple game modes (e.g. walls that wrap instead of killing you)
 - Per-difficulty high scores
+- More musical variation (a second chord/scale that swaps in periodically)
 
 ## License
 

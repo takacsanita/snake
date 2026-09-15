@@ -25,6 +25,10 @@
   const overlayTitle = document.getElementById('overlayTitle');
   const overlayMessage = document.getElementById('overlayMessage');
   const overlayBtn = document.getElementById('overlayBtn');
+  const musicVolumeSlider = document.getElementById('musicVolumeSlider');
+  const sfxVolumeSlider = document.getElementById('sfxVolumeSlider');
+  const btnMusicMute = document.getElementById('btnMusicMute');
+  const btnSfxMute = document.getElementById('btnSfxMute');
 
   // ---------- Game state ----------
   let cellSize = 0;
@@ -116,6 +120,7 @@
   function endGame() {
     state = 'gameover';
     btnPause.disabled = true;
+    playGameOverSound();
     if (score > highScore) {
       highScore = score;
       highScoreEl.textContent = String(highScore);
@@ -135,13 +140,262 @@
     overlay.classList.add('d-none');
   }
 
+  // =====================================================================
+  // AUDIO SYSTEM
+  // Fully procedural (Web Audio API oscillators/filters/delay) — no
+  // external audio files, so the game stays a self-contained page.
+  // Everything here is inert until ensureAudioContext() runs, which only
+  // happens from inside a real user gesture (click/keydown), satisfying
+  // browser autoplay policies.
+  // =====================================================================
+  const AUDIO_KEYS = {
+    musicVolume: 'snakeMusicVolume',
+    musicMuted: 'snakeMusicMuted',
+    sfxVolume: 'snakeSfxVolume',
+    sfxMuted: 'snakeSfxMuted',
+  };
+
+  // ---------- Persisted audio preferences (defaults if nothing saved yet) ----------
+  let musicVolume = Number(localStorage.getItem(AUDIO_KEYS.musicVolume));
+  if (!Number.isFinite(musicVolume)) musicVolume = 0.5;
+  let sfxVolume = Number(localStorage.getItem(AUDIO_KEYS.sfxVolume));
+  if (!Number.isFinite(sfxVolume)) sfxVolume = 0.7;
+  let musicMuted = localStorage.getItem(AUDIO_KEYS.musicMuted) === 'true';
+  let sfxMuted = localStorage.getItem(AUDIO_KEYS.sfxMuted) === 'true';
+
+  let audioCtx = null;
+  let musicGain = null;   // master volume for the background music graph
+  let sfxGain = null;     // master volume for one-shot sound effects
+  let musicStarted = false;
+  let pulseTimerId = null;
+
+  // Lazily create the AudioContext on first real user gesture (click/keydown).
+  // Safe to call repeatedly — it also resumes a context a browser auto-suspended.
+  function ensureAudioContext() {
+    if (audioCtx) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return;
+    }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = musicMuted ? 0 : musicVolume;
+    musicGain.connect(audioCtx.destination);
+
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = sfxMuted ? 0 : sfxVolume;
+    sfxGain.connect(audioCtx.destination);
+
+    buildMusicGraph();
+    startMusic();
+  }
+
+  // ---------- Background music: chill ambient synth pad + slow generative pulses ----------
+  // A calm, focus-friendly soundscape — a soft sustained pad (the harmonic
+  // "room tone") that breathes slowly, plus occasional gentle melodic pulses
+  // that fade in/out rather than ticking along on a beat. Nothing here is
+  // sharp or rhythmically insistent, so it sits behind gameplay instead of
+  // competing with it.
+  let padFilter, padBus, pulseDelay;
+  function buildMusicGraph() {
+    // Gentle lowpass keeps the pad soft/rounded; the pad's own sine
+    // oscillators are already harmonically simple, so this mostly just
+    // takes the edge off the pulses' echoes as they pass through it.
+    padFilter = audioCtx.createBiquadFilter();
+    padFilter.type = 'lowpass';
+    padFilter.frequency.value = 900;
+    padFilter.Q.value = 0.7;
+    padFilter.connect(musicGain);
+
+    // Very slow filter drift — barely perceptible, avoids a static/frozen pad.
+    const filterLfo = audioCtx.createOscillator();
+    filterLfo.type = 'sine';
+    filterLfo.frequency.value = 0.025; // one full drift every ~40s
+    const filterLfoDepth = audioCtx.createGain();
+    filterLfoDepth.gain.value = 150;
+    filterLfo.connect(filterLfoDepth).connect(padFilter.frequency);
+    filterLfo.start();
+
+    // padBus carries the whole sustained pad, with a slow tremolo so the
+    // drone "breathes" instead of droning at a flat, constant volume.
+    padBus = audioCtx.createGain();
+    padBus.gain.value = 0.9;
+    padBus.connect(padFilter);
+
+    const tremoloLfo = audioCtx.createOscillator();
+    tremoloLfo.type = 'sine';
+    tremoloLfo.frequency.value = 0.06; // one gentle swell every ~17s
+    const tremoloDepth = audioCtx.createGain();
+    tremoloDepth.gain.value = 0.12;
+    tremoloLfo.connect(tremoloDepth).connect(padBus.gain);
+    tremoloLfo.start();
+
+    // Long, lush feedback delay for the melodic pulses — the main source of
+    // the soundscape's spacious, immersive quality.
+    pulseDelay = audioCtx.createDelay(1.2);
+    pulseDelay.delayTime.value = 0.55;
+    const pulseFeedback = audioCtx.createGain();
+    pulseFeedback.gain.value = 0.42;
+    pulseDelay.connect(pulseFeedback);
+    pulseFeedback.connect(pulseDelay);
+    pulseDelay.connect(musicGain);
+  }
+
+  // Soft, wide Cmaj9-voiced pad on pure sine tones — mellow, consonant,
+  // nothing above a whisper individually so the sum stays gentle.
+  function startPad() {
+    const padFreqs = [65.41, 130.81, 164.81, 196.0, 246.94, 293.66]; // C2 C3 E3 G3 B3 D4
+    padFreqs.forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const level = audioCtx.createGain();
+      level.gain.value = 0.045 + i * 0.006;
+      osc.connect(level).connect(padBus);
+      osc.start();
+    });
+  }
+
+  // Slow, generative melodic pulses — a soft sine note every couple of
+  // seconds (randomized timing/pitch so it never feels like a repeating
+  // loop), each with a slow fade-in/fade-out rather than a percussive hit.
+  const PULSE_SCALE = [261.63, 293.66, 329.63, 392.0, 440.0]; // C4 D4 E4 G4 A4 (major pentatonic)
+  function schedulePulseNote() {
+    if (musicMuted || musicVolume <= 0) return; // skip building oscillators when silent
+    const now = audioCtx.currentTime;
+    const octave = Math.random() < 0.25 ? 0.5 : 1; // occasional soft octave-down for depth
+    const freq = PULSE_SCALE[Math.floor(Math.random() * PULSE_SCALE.length)] * octave;
+
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const env = audioCtx.createGain();
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(0.09, now + 0.4);      // slow fade in
+    env.gain.exponentialRampToValueAtTime(0.001, now + 3.2); // long, gentle fade out
+    osc.connect(env);
+    env.connect(musicGain);
+    env.connect(pulseDelay);
+    osc.start(now);
+    osc.stop(now + 3.3);
+  }
+  function armNextPulse() {
+    schedulePulseNote();
+    pulseTimerId = setTimeout(armNextPulse, 1800 + Math.random() * 1400); // organic, non-looping spacing
+  }
+
+  function startMusic() {
+    if (musicStarted) return;
+    musicStarted = true;
+    startPad();
+    armNextPulse();
+  }
+
+  // ---------- Sound effects: short procedural blips (no audio files) ----------
+  function playTone({ type = 'sine', freq, startFreq, endFreq, duration = 0.15, gain = 0.2 }) {
+    if (!audioCtx || !sfxGain) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    osc.type = type;
+    if (startFreq && endFreq) {
+      osc.frequency.setValueAtTime(startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+    } else {
+      osc.frequency.value = freq;
+    }
+    const env = audioCtx.createGain();
+    env.gain.setValueAtTime(gain, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    osc.connect(env).connect(sfxGain);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  function playClickSound() { playTone({ type: 'triangle', freq: 520, duration: 0.06, gain: 0.15 }); }
+  function playTurnSound() { playTone({ type: 'sine', freq: 660, duration: 0.05, gain: 0.08 }); }
+  function playEatSound() { playTone({ type: 'square', startFreq: 440, endFreq: 880, duration: 0.12, gain: 0.22 }); }
+
+  function playLevelUpSound() {
+    // Quick ascending 3-note chiptune riff, played on score milestones.
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      setTimeout(() => playTone({ type: 'square', freq, duration: 0.12, gain: 0.2 }), i * 90);
+    });
+  }
+
+  function playGameOverSound() {
+    // Descending buzzy tones.
+    [392.0, 329.63, 261.63, 196.0].forEach((freq, i) => {
+      setTimeout(() => playTone({ type: 'sawtooth', freq, duration: 0.22, gain: 0.2 }), i * 130);
+    });
+  }
+
+  // ---------- Volume/mute UI wiring (also persists prefs to localStorage) ----------
+  function applyMusicGain() {
+    if (!musicGain) return;
+    musicGain.gain.setTargetAtTime(musicMuted ? 0 : musicVolume, audioCtx.currentTime, 0.05);
+  }
+  function applySfxGain() {
+    if (!sfxGain) return;
+    sfxGain.gain.setTargetAtTime(sfxMuted ? 0 : sfxVolume, audioCtx.currentTime, 0.05);
+  }
+
+  // Icon swap helper — mute buttons hold a single Bootstrap Icons <i>, and we
+  // just swap which bi-* glyph class it wears based on the current state.
+  const musicMuteIcon = btnMusicMute.querySelector('i');
+  const sfxMuteIcon = btnSfxMute.querySelector('i');
+  function setMusicMuteUI() {
+    musicMuteIcon.className = musicMuted ? 'bi bi-volume-mute-fill' : 'bi bi-music-note-beamed';
+    btnMusicMute.classList.toggle('is-muted', musicMuted);
+    btnMusicMute.setAttribute('aria-label', musicMuted ? 'Unmute music' : 'Mute music');
+  }
+  function setSfxMuteUI() {
+    sfxMuteIcon.className = sfxMuted ? 'bi bi-volume-mute-fill' : 'bi bi-volume-up-fill';
+    btnSfxMute.classList.toggle('is-muted', sfxMuted);
+    btnSfxMute.setAttribute('aria-label', sfxMuted ? 'Unmute sound effects' : 'Mute sound effects');
+  }
+
+  // Reflect the loaded/initial preferences in the UI before any audio exists.
+  musicVolumeSlider.value = String(Math.round(musicVolume * 100));
+  sfxVolumeSlider.value = String(Math.round(sfxVolume * 100));
+  setMusicMuteUI();
+  setSfxMuteUI();
+
+  musicVolumeSlider.addEventListener('input', () => {
+    ensureAudioContext();
+    musicVolume = Number(musicVolumeSlider.value) / 100;
+    localStorage.setItem(AUDIO_KEYS.musicVolume, String(musicVolume));
+    applyMusicGain();
+  });
+  sfxVolumeSlider.addEventListener('input', () => {
+    ensureAudioContext();
+    sfxVolume = Number(sfxVolumeSlider.value) / 100;
+    localStorage.setItem(AUDIO_KEYS.sfxVolume, String(sfxVolume));
+    applySfxGain();
+  });
+  btnMusicMute.addEventListener('click', () => {
+    ensureAudioContext();
+    musicMuted = !musicMuted;
+    localStorage.setItem(AUDIO_KEYS.musicMuted, String(musicMuted));
+    setMusicMuteUI();
+    applyMusicGain();
+  });
+  btnSfxMute.addEventListener('click', () => {
+    ensureAudioContext();
+    sfxMuted = !sfxMuted;
+    localStorage.setItem(AUDIO_KEYS.sfxMuted, String(sfxMuted));
+    setSfxMuteUI();
+    applySfxGain();
+  });
+
   // ---------- Input: direction changes (shared by keyboard + touch) ----------
   function queueDirection(dx, dy) {
     if (state === 'gameover') return;
+    ensureAudioContext();
     const wasIdle = state === 'idle';
     // Ignore reversals (can't turn 180° into your own neck), but any key still starts the game.
     if (!(dx === -direction.x && dy === -direction.y)) {
       nextDirection = { x: dx, y: dy };
+      playTurnSound();
     }
     if (wasIdle) startGame();
   }
@@ -157,12 +411,15 @@
     if (KEY_MAP[e.code]) {
       e.preventDefault();
       const [dx, dy] = KEY_MAP[e.code];
-      queueDirection(dx, dy);
+      queueDirection(dx, dy); // also calls ensureAudioContext() — covers "any key starts audio"
     } else if (e.code === 'Space' || e.code === 'KeyP') {
       e.preventDefault();
-      if (state === 'running' || state === 'paused') togglePause();
+      ensureAudioContext();
+      if (state === 'running' || state === 'paused') { playClickSound(); togglePause(); }
     } else if (e.code === 'KeyR') {
       e.preventDefault();
+      ensureAudioContext();
+      playClickSound();
       restartGame();
     }
   }, { passive: false });
@@ -178,13 +435,16 @@
   });
 
   // ---------- Buttons ----------
-  btnStart.addEventListener('click', startGame);
-  btnPause.addEventListener('click', togglePause);
-  btnRestart.addEventListener('click', restartGame);
+  btnStart.addEventListener('click', () => { ensureAudioContext(); playClickSound(); startGame(); });
+  btnPause.addEventListener('click', () => { ensureAudioContext(); playClickSound(); togglePause(); });
+  btnRestart.addEventListener('click', () => { ensureAudioContext(); playClickSound(); restartGame(); });
   overlayBtn.addEventListener('click', () => {
+    ensureAudioContext();
+    playClickSound();
     if (state === 'idle' || state === 'gameover') restartGame();
     else if (state === 'paused') togglePause();
   });
+  difficultySelect.addEventListener('change', ensureAudioContext);
 
   // Difficulty is read live each tick via currentSpeed(), so changing it applies immediately.
   function currentSpeed() {
@@ -212,6 +472,8 @@
     if (head.x === food.x && head.y === food.y) {
       score += 10;
       scoreEl.textContent = String(score);
+      playEatSound();
+      if (score % 50 === 0) playLevelUpSound(); // milestone every 5 food eaten
       placeFood();
     } else {
       snake.pop(); // move forward (no growth) when no food was eaten
