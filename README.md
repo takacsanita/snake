@@ -14,25 +14,30 @@ The classic Snake game, playable in the browser with no build step or server req
 
 ## Controls
 
-- **Arrow Keys** (↑ ↓ ← →): Move the snake
-- **WASD**: Alternative movement controls
-- **Space** or **R**: Restart the game after game over
+- **Arrow Keys** (↑ ↓ ← →) or **WASD**: Move the snake
+- **Space** or **P**: Pause / Resume
+- **R**: Restart
+- **On-screen D-pad**: Touch controls on mobile devices
 
 ## Game Features
 
-- Score tracking during gameplay
-- Game over detection (wall collision and self-collision)
-- Smooth animation and responsive controls
-- Retro-style grid-based gameplay
-- No dependencies—pure HTML, CSS, and JavaScript
+- Score and persistent high score (saved in your browser via `localStorage`)
+- Pause/Resume at any time
+- Three difficulty levels (Easy / Medium / Hard) that adjust game speed live
+- Wall and self-collision detection with a Game Over screen
+- Fully responsive layout (mobile, tablet, desktop) built with Bootstrap 5
+- Psychedelic neon-retro UI: animated cosmic gradient background, glowing rainbow title, neon-pulse buttons — with a glowing/pulsing food and gradient snake on the game board itself
 
 ## Project Structure
 
 ```
 snake/
-├── index.html          # Main game file (HTML + CSS + JavaScript)
-├── README.md          # This file
-└── .gitignore         # Git configuration
+├── index.html          # Markup: links style.css, loads script.js
+├── style.css           # All styling, including the psychedelic theme
+├── script.js           # All game logic (state, input, rendering)
+├── README.md           # This file
+├── CLAUDE.md           # Architecture & state-management reference
+└── .gitignore          # Git configuration
 ```
 
 ## Development
@@ -63,28 +68,30 @@ Then open `http://localhost:8000` in your browser.
 
 ### Technologies
 
-- **HTML5**: Game canvas and structure
-- **CSS3**: Styling and animations
-- **JavaScript (Vanilla)**: Game logic and interactions
-- No external dependencies or build tools
+- **HTML5 Canvas**: Game rendering
+- **Bootstrap 5** (CDN): UI components and responsive layout
+- **JavaScript (Vanilla, ES6+)**: Game logic and interactions
+- **Google Fonts** (`Press Start 2P`, `VT323`): Retro/psychedelic typography
+- No build tools or Node packages — only CDN dependencies (Bootstrap, Google Fonts)
 
 ## Implementation Details
 
 The game uses:
-- HTML5 Canvas for rendering the game grid and snake
-- Keyboard event listeners for player input
-- Game loop with requestAnimationFrame for smooth 60 FPS gameplay
+- HTML5 Canvas for rendering the grid, snake, and food
+- A single persistent `requestAnimationFrame` loop, throttled to the selected difficulty's tick rate
+- Keyboard event listeners plus a touch-friendly on-screen D-pad, both feeding one shared input handler
+- `localStorage` for high score persistence across sessions
 - Collision detection for walls, food, and self
+
+See [CLAUDE.md](CLAUDE.md) for a deeper architecture breakdown (state machine, `localStorage` keys, control mappings).
 
 ## Future Enhancements
 
 Potential features to add:
-- Difficulty levels (game speed)
-- High score persistence (localStorage)
+- Progressive speed increase as the score climbs
 - Sound effects and background music
-- Multiple game modes
-- Mobile touch controls
-- Pause/resume functionality
+- Multiple game modes (e.g. walls that wrap instead of killing you)
+- Per-difficulty high scores
 
 ## License
 

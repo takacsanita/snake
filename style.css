@@ -1,0 +1,288 @@
+/* =====================================================================
+   SNAKE — Psychedelic Neon-Retro theme
+   Scope: everything EXCEPT the canvas drawing itself (that's untouched
+   JS-drawn pixel art). This file only styles the page chrome around it:
+   background, header, panels, buttons, overlay and the mobile D-pad.
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+/* ---------- Palette & theme tokens ---------- */
+:root {
+  --neon-pink: #ff2fd0;
+  --neon-cyan: #2ffcff;
+  --neon-purple: #b83bff;
+  --neon-yellow: #fff92f;
+  --neon-orange: #ff7a2f;
+
+  --cosmic-bg-1: #05010f;
+  --cosmic-bg-2: #1b0836;
+  --cosmic-bg-3: #06111f;
+
+  --panel-bg: rgba(20, 8, 40, 0.55);
+  --panel-border: rgba(255, 47, 208, 0.35);
+  --text-dim: #c9a8ff;
+
+  --accent: var(--neon-cyan);
+  --accent-2: var(--neon-pink);
+
+  /* Dedicated, unchanged dark backdrop for the game board so the
+     existing snake/food canvas colors keep the same contrast. */
+  --board-bg: #0b0f14;
+}
+
+html, body {
+  height: 100%;
+}
+
+/* ---------- Animated cosmic background ---------- */
+body {
+  min-height: 100vh;
+  font-family: 'VT323', monospace;
+  font-size: 1.2rem;
+  color: #f1e6ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.25rem 0.75rem 2rem;
+  position: relative;
+  overflow-x: hidden;
+
+  background: linear-gradient(125deg, var(--cosmic-bg-1), var(--cosmic-bg-2), var(--cosmic-bg-3), var(--cosmic-bg-1));
+  background-size: 400% 400%;
+  animation: cosmicDrift 20s ease infinite;
+}
+
+@keyframes cosmicDrift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Floating glowing blobs drifting behind the content — purely decorative,
+   kept low-opacity/blurred so they never compete with gameplay. */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.32;
+  z-index: -1;
+  pointer-events: none;
+  animation: floatBlob 16s ease-in-out infinite;
+}
+body::before {
+  width: 26rem; height: 26rem;
+  background: var(--neon-pink);
+  top: -8rem; left: -8rem;
+}
+body::after {
+  width: 24rem; height: 24rem;
+  background: var(--neon-cyan);
+  bottom: -9rem; right: -6rem;
+  animation-delay: -8s;
+}
+@keyframes floatBlob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(2.5rem, 2rem) scale(1.15); }
+}
+
+.app-wrap {
+  width: 100%;
+  max-width: 560px;
+}
+
+/* ---------- Header: glowing rainbow title ---------- */
+h1.brand {
+  font-family: 'Press Start 2P', 'VT323', monospace;
+  font-size: 1.05rem;
+  letter-spacing: 1px;
+  margin: 0;
+  background: linear-gradient(90deg, var(--neon-pink), var(--neon-yellow), var(--neon-cyan), var(--neon-purple), var(--neon-pink));
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 18px rgba(255, 47, 208, 0.45), 0 0 32px rgba(47, 252, 255, 0.25);
+  animation: rainbowShift 7s linear infinite;
+}
+@keyframes rainbowShift {
+  to { background-position: 300% center; }
+}
+
+/* ---------- Scoreboard pills ---------- */
+.stat-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  min-width: 92px;
+}
+.stat-pill .label {
+  font-size: 0.65rem;
+  font-family: 'Press Start 2P', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.stat-pill .value {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  padding-top: 0.35rem;
+}
+#scoreValue {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px var(--neon-cyan), 0 0 18px rgba(47, 252, 255, 0.6);
+}
+#highScoreValue {
+  color: var(--neon-yellow);
+  text-shadow: 0 0 8px var(--neon-yellow), 0 0 18px rgba(255, 249, 47, 0.6);
+}
+
+/* ---------- Glassmorphism panels (HUD + controls bar) ---------- */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 1rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 0 22px rgba(184, 59, 255, 0.25), inset 0 0 18px rgba(255, 255, 255, 0.03);
+}
+
+/* ---------- Game board frame ---------- */
+/* The canvas itself keeps --board-bg and its JS-drawn contents untouched;
+   only the frame around it gets a neon glow to match the theme. */
+.board-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 2px var(--panel-border),
+    0 0 30px rgba(47, 252, 255, 0.25),
+    0 0 60px rgba(184, 59, 255, 0.15),
+    0 20px 60px -20px rgba(0, 0, 0, 0.8);
+}
+
+#gameCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: var(--board-bg);
+  touch-action: none;
+}
+
+/* ---------- Overlay (Start / Paused / Game Over) ---------- */
+.board-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: rgba(6, 1, 15, 0.78);
+  text-align: center;
+  padding: 1.5rem;
+}
+.board-overlay.d-none { display: none !important; }
+.board-overlay h2 {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 1.15rem;
+  margin: 0;
+  color: #fff;
+  text-shadow: 0 0 10px var(--neon-pink), 0 0 24px var(--neon-purple);
+}
+.board-overlay p {
+  color: var(--text-dim);
+  margin: 0;
+  max-width: 320px;
+  font-size: 1.15rem;
+}
+
+/* ---------- Buttons ---------- */
+.btn-accent {
+  background: linear-gradient(90deg, var(--neon-purple), var(--neon-pink));
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-family: 'VT323', monospace;
+  font-size: 1.2rem;
+  letter-spacing: 0.5px;
+  animation: neonPulse 3s ease-in-out infinite;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.btn-accent:hover {
+  transform: translateY(-1px) scale(1.03);
+  filter: brightness(1.1);
+  color: #fff;
+}
+@keyframes neonPulse {
+  0%, 100% { box-shadow: 0 0 10px var(--neon-pink), 0 0 20px rgba(184, 59, 255, 0.35); }
+  50%      { box-shadow: 0 0 16px var(--neon-cyan), 0 0 30px rgba(47, 252, 255, 0.4); }
+}
+
+.btn-outline-light {
+  font-family: 'VT323', monospace;
+  font-size: 1.2rem;
+  color: var(--neon-cyan);
+  border-color: var(--neon-cyan);
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-outline-light:hover,
+.btn-outline-light:focus {
+  background: var(--neon-cyan);
+  color: #06111f;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 16px var(--neon-cyan);
+}
+.btn-outline-light:disabled {
+  color: var(--text-dim);
+  border-color: var(--panel-border);
+}
+
+/* Difficulty <select> */
+#difficultySelect {
+  font-family: 'VT323', monospace;
+  font-size: 1.1rem;
+  border-color: var(--panel-border);
+}
+#difficultySelect:focus {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 0 0.2rem rgba(47, 252, 255, 0.25);
+}
+
+/* ---------- On-screen D-pad (mobile touch controls) ---------- */
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 56px);
+  gap: 6px;
+  justify-content: center;
+  user-select: none;
+}
+.dpad button {
+  width: 56px;
+  height: 56px;
+  border-radius: 0.75rem;
+  touch-action: none;
+  font-size: 1.3rem;
+}
+.dpad-up    { grid-column: 2; grid-row: 1; }
+.dpad-left  { grid-column: 1; grid-row: 2; }
+.dpad-right { grid-column: 3; grid-row: 2; }
+.dpad-down  { grid-column: 2; grid-row: 3; }
+
+/* ---------- Footer keyboard hints ---------- */
+.kbd-hint {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+}
+.kbd-hint kbd {
+  background: rgba(184, 59, 255, 0.25);
+  color: var(--neon-cyan);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 0 6px rgba(47, 252, 255, 0.35);
+}
